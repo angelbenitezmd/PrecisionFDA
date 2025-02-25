@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+import concurrent.futures  # Parallel processing
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import OpenAIEmbeddings
@@ -10,7 +11,7 @@ import psycopg2
 import openai
 import tempfile
 import os
-from openai import OpenAI  # Import OpenAI's latest API client
+from openai import OpenAI
 
 # Load API Keys from Streamlit Secrets
 DATABASE_URL = st.secrets["DATABASE_URL"]
@@ -20,65 +21,87 @@ os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 # Initialize OpenAI Client
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+# Ensure session state variables exist
+if "selected_query" not in st.session_state:
+    st.session_state["selected_query"] = ""
+
+if "vector_store" not in st.session_state:
+    st.session_state["vector_store"] = None
+
+if "qa_chain" not in st.session_state:
+    st.session_state["qa_chain"] = None
+
 # Connect to PostgreSQL (Supabase)
 def get_db_connection():
+    """Establish a connection to the database using a context manager."""
     return psycopg2.connect(DATABASE_URL)
 
-# Save chat history to the database
+# Save chat history to PostgreSQL
 def save_chat_history(user_input, bot_response, citations):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT INTO chat_history (user_query, bot_response, citations)
-        VALUES (%s, %s, %s)
-        """,
-        (user_input, bot_response, " | ".join(citations))
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+    """Save user queries and responses to the database."""
+    citations_text = " | ".join([f"{c['source']} (Page {c['page']})" for c in citations])
 
-# Retrieve chat history from the database
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO chat_history (user_query, bot_response, citations)
+                VALUES (%s, %s, %s)
+                """,
+                (user_input, bot_response, citations_text)
+            )
+            conn.commit()
+
+# Retrieve past chat history
 def load_chat_history():
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT user_query, bot_response, citations FROM chat_history ORDER BY id DESC LIMIT 10")
-    history = cur.fetchall()
-    cur.close()
-    conn.close()
-    return history
+    """Retrieve the latest chat history from the database."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT user_query, bot_response, citations FROM chat_history ORDER BY id DESC LIMIT 10")
+            return cur.fetchall()
 
-# Process PDFs and store embeddings
-def process_pdfs(uploaded_files):
+# Process a single PDF file
+def process_single_pdf(pdf_file):
+    """Process an individual PDF file and extract document chunks."""
+    temp_pdf_path = os.path.join(tempfile.gettempdir(), pdf_file.name)
+    with open(temp_pdf_path, "wb") as temp_pdf:
+        temp_pdf.write(pdf_file.read())
+
+    loader = PyPDFLoader(temp_pdf_path)
+    documents = loader.load()
+
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+    return text_splitter.split_documents(documents)
+
+# Cache FAISS vector store using st.cache_resource
+@st.cache_resource(show_spinner=True)
+def get_vector_store(uploaded_files):
+    """Cache the FAISS vector store as a resource (instead of using pickle-based caching)."""
     all_chunks = []
-    
-    for pdf_file in uploaded_files:
-        temp_pdf_path = os.path.join(tempfile.gettempdir(), pdf_file.name)
-        with open(temp_pdf_path, "wb") as temp_pdf:
-            temp_pdf.write(pdf_file.read())
-        
-        loader = PyPDFLoader(temp_pdf_path)
-        documents = loader.load()
-        
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-        chunks = text_splitter.split_documents(documents)
-        all_chunks.extend(chunks)
-    
-    embeddings = OpenAIEmbeddings()
-    vector_store = FAISS.from_documents(all_chunks, embeddings)
 
-    # Store processed documents in session state
-    st.session_state["vector_store"] = vector_store
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        results = list(executor.map(process_single_pdf, uploaded_files))
+    
+    for chunks in results:
+        all_chunks.extend(chunks)
+
+    embeddings = OpenAIEmbeddings()
+    return FAISS.from_documents(all_chunks, embeddings)  # ✅ Now properly cached!
+
+# Process multiple PDFs
+def process_pdfs(uploaded_files):
+    """Processes PDFs and stores embeddings in session state."""
+    st.session_state["vector_store"] = get_vector_store(uploaded_files)
     st.session_state["qa_chain"] = RetrievalQA.from_chain_type(
         llm=ChatOpenAI(model_name="gpt-4-turbo", streaming=True),
-        retriever=vector_store.as_retriever(search_kwargs={"k": 15}),
+        retriever=st.session_state["vector_store"].as_retriever(search_kwargs={"k": 15}),
         chain_type="stuff",
         return_source_documents=True
     )
 
-# Query Classification with Updated OpenAI API
+# Query classification using OpenAI API
 def classify_query(user_input):
+    """Classifies the query into predefined categories."""
     response = client.chat.completions.create(
         model="gpt-4-turbo",
         messages=[
@@ -86,14 +109,13 @@ def classify_query(user_input):
             {"role": "user", "content": user_input}
         ]
     )
-
     category = response.choices[0].message.content.strip()
-    valid_categories = ["Regulatory Compliance", "Manufacturing Standards", "Product Safety", "FDA Procedures", "General Inquiry"]
-    return category if category in valid_categories else "General Inquiry"
+    return category if category in ["Regulatory Compliance", "Manufacturing Standards", "Product Safety", "FDA Procedures", "General Inquiry"] else "General Inquiry"
 
-# Query Routing with Enhanced Formatting
+# Retrieve relevant documents and generate AI response
 def route_query(user_input, selected_category):
-    if "vector_store" not in st.session_state or "qa_chain" not in st.session_state:
+    """Fetches relevant documents and generates AI response."""
+    if st.session_state["vector_store"] is None or st.session_state["qa_chain"] is None:
         return "❌ Error: Please upload and process a document first.", []
 
     retriever = st.session_state["vector_store"].as_retriever(search_kwargs={"k": 15})
@@ -111,7 +133,7 @@ def route_query(user_input, selected_category):
         for doc in response["source_documents"]:
             source_name = os.path.basename(doc.metadata.get("source", "Unknown.pdf"))
             page_number = doc.metadata.get("page", "N/A")
-            text_excerpt = doc.page_content[:400]  
+            text_excerpt = doc.page_content[:400]
 
             citation_key = (source_name, page_number)
             if citation_key in seen_citations:
@@ -129,7 +151,7 @@ def route_query(user_input, selected_category):
 # Streamlit UI
 st.set_page_config(page_title="📄 RAG AI PDF Assistant", layout="wide")
 st.title("📄 RAG AI Assistant for PDFs")
-st.write("Upload multiple PDFs, ask questions, and use AI-powered retrieval.")
+st.write("Upload PDFs, ask questions, and retrieve AI-powered answers with citations.")
 
 # Sidebar
 with st.sidebar:
@@ -150,15 +172,15 @@ with st.sidebar:
 st.subheader("💬 Chat with Your PDFs")
 chat_history = load_chat_history()
 
-# **Display Past Queries**
+# Display Past Queries
 if chat_history:
     st.subheader("🕒 Past Queries")
-    for idx, (past_query, past_response, past_citations) in enumerate(chat_history):
+    for idx, (past_query, _, _) in enumerate(chat_history):
         if st.button(f"🔄 {past_query}", key=f"history_{idx}"):
-            user_query = past_query
+            st.session_state["selected_query"] = past_query
 
 # User Query Input
-user_query = st.text_input("Type your question here:")
+user_query = st.text_input("Type your question here:", value=st.session_state["selected_query"])
 
 if user_query:
     category = classify_query(user_query)
@@ -170,17 +192,17 @@ if user_query:
 
     st.subheader("🤖 AI Response:")
     response_placeholder = st.empty()
-    response_text = ""
 
-    # **Formatted AI Response**
+    # Retrieve AI Response & Citations
     response, citations = route_query(user_query, selected_category)
-    formatted_response = response.replace("1.", "\n### 1.").replace("2.", "\n### 2.").replace("3.", "\n### 3.").replace("4.", "\n### 4.").replace("5.", "\n### 5.").replace("6.", "\n### 6.").replace("7.", "\n### 7.").replace("8.", "\n### 8.").replace("9.", "\n### 9.").replace("10.", "\n### 10.")
 
+    # Format AI Response for better readability
+    formatted_response = response.replace("\n", "\n\n")
     response_placeholder.markdown(formatted_response)
 
-    # **Display Citations**
+    # Display Citations
     if citations:
         st.subheader("📄 Relevant Citations:")
         for citation in citations:
-            with st.expander(f"📄 {citation['source']} (Page {citation['page']})"):
+            with st.expander(f"📄 {citation['source']} (Page {citation['page']})", expanded=False):
                 st.write(f"**Excerpt:** {citation['text']}")
