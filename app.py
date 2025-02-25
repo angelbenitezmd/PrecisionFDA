@@ -21,16 +21,6 @@ os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 # Initialize OpenAI Client
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# Ensure session state variables exist
-if "selected_query" not in st.session_state:
-    st.session_state["selected_query"] = ""
-
-if "vector_store" not in st.session_state:
-    st.session_state["vector_store"] = None
-
-if "qa_chain" not in st.session_state:
-    st.session_state["qa_chain"] = None
-
 # Connect to PostgreSQL (Supabase)
 def get_db_connection():
     """Establish a connection to the database using a context manager."""
@@ -73,10 +63,9 @@ def process_single_pdf(pdf_file):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     return text_splitter.split_documents(documents)
 
-# Cache FAISS vector store using st.cache_resource
-@st.cache_resource(show_spinner=True)
-def get_vector_store(uploaded_files):
-    """Cache the FAISS vector store as a resource (instead of using pickle-based caching)."""
+# Process multiple PDFs in parallel
+def process_pdfs(uploaded_files):
+    """Processes multiple PDFs in parallel to speed up embedding generation."""
     all_chunks = []
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -86,15 +75,13 @@ def get_vector_store(uploaded_files):
         all_chunks.extend(chunks)
 
     embeddings = OpenAIEmbeddings()
-    return FAISS.from_documents(all_chunks, embeddings)  # ✅ Now properly cached!
+    vector_store = FAISS.from_documents(all_chunks, embeddings)
 
-# Process multiple PDFs
-def process_pdfs(uploaded_files):
-    """Processes PDFs and stores embeddings in session state."""
-    st.session_state["vector_store"] = get_vector_store(uploaded_files)
+    # Store in session state
+    st.session_state["vector_store"] = vector_store
     st.session_state["qa_chain"] = RetrievalQA.from_chain_type(
         llm=ChatOpenAI(model_name="gpt-4-turbo", streaming=True),
-        retriever=st.session_state["vector_store"].as_retriever(search_kwargs={"k": 15}),
+        retriever=vector_store.as_retriever(search_kwargs={"k": 15}),
         chain_type="stuff",
         return_source_documents=True
     )
@@ -115,7 +102,7 @@ def classify_query(user_input):
 # Retrieve relevant documents and generate AI response
 def route_query(user_input, selected_category):
     """Fetches relevant documents and generates AI response."""
-    if st.session_state["vector_store"] is None or st.session_state["qa_chain"] is None:
+    if "vector_store" not in st.session_state or "qa_chain" not in st.session_state:
         return "❌ Error: Please upload and process a document first.", []
 
     retriever = st.session_state["vector_store"].as_retriever(search_kwargs={"k": 15})
@@ -164,23 +151,26 @@ with st.sidebar:
     
     if st.button("Process"):
         if uploaded_files:
-            st.success(f"Processing {len(uploaded_files)} PDFs...")
-            process_pdfs(uploaded_files)
+            with st.spinner("Processing PDFs... Please wait."):
+                process_pdfs(uploaded_files)
             st.success("Processing complete! Ask a question below.")
 
 # Chat UI
 st.subheader("💬 Chat with Your PDFs")
 chat_history = load_chat_history()
 
-# Display Past Queries
-if chat_history:
-    st.subheader("🕒 Past Queries")
+# ✅ Collapsible Past Queries Section (Now Auto-Fills Input)
+with st.expander("🕒 Past Queries", expanded=False):
     for idx, (past_query, _, _) in enumerate(chat_history):
         if st.button(f"🔄 {past_query}", key=f"history_{idx}"):
-            st.session_state["selected_query"] = past_query
+            st.session_state["user_query"] = past_query  # ✅ Auto-fills the query box
 
-# User Query Input
-user_query = st.text_input("Type your question here:", value=st.session_state["selected_query"])
+# ✅ User Query Input Field
+user_query = st.text_input("Type your question here:", value=st.session_state.get("user_query", ""))
+
+# ✅ Clears session state after submission
+if user_query and st.session_state.get("user_query"):
+    st.session_state["user_query"] = ""
 
 if user_query:
     category = classify_query(user_query)
@@ -196,9 +186,7 @@ if user_query:
     # Retrieve AI Response & Citations
     response, citations = route_query(user_query, selected_category)
 
-    # Format AI Response for better readability
-    formatted_response = response.replace("\n", "\n\n")
-    response_placeholder.markdown(formatted_response)
+    response_placeholder.markdown(response.replace("\n", "\n\n"))
 
     # Display Citations
     if citations:
