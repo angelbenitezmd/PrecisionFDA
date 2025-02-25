@@ -10,11 +10,15 @@ import psycopg2
 import openai
 import tempfile
 import os
+from openai import OpenAI  # Import OpenAI's latest API client
 
 # Load API Keys from Streamlit Secrets
 DATABASE_URL = st.secrets["DATABASE_URL"]
 OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+
+# Initialize OpenAI Client
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Connect to PostgreSQL (Supabase)
 def get_db_connection():
@@ -73,17 +77,17 @@ def process_pdfs(uploaded_files):
         return_source_documents=True
     )
 
-# Query Classification
+# Query Classification with Updated OpenAI API
 def classify_query(user_input):
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
         model="gpt-4-turbo",
         messages=[
             {"role": "system", "content": "Classify the user query into one of these categories: Regulatory Compliance, Manufacturing Standards, Product Safety, FDA Procedures, General Inquiry. Respond with ONLY the category name."},
             {"role": "user", "content": user_input}
         ]
     )
-    
-    category = response["choices"][0]["message"]["content"].strip()
+
+    category = response.choices[0].message.content.strip()
     valid_categories = ["Regulatory Compliance", "Manufacturing Standards", "Product Safety", "FDA Procedures", "General Inquiry"]
     return category if category in valid_categories else "General Inquiry"
 
