@@ -111,9 +111,22 @@ def route_query(user_input, selected_category):
     return response["result"], citations
 
 # ✅ Streamlit UI
+# ✅ Introduction: Purpose of the App
 st.set_page_config(page_title="📄 RAG AI PDF Assistant", layout="wide")
-st.title("📄 RAG AI Assistant for PDFs")
-st.write("Upload PDFs, ask questions, and retrieve AI-powered answers with citations.")
+
+st.title("📄 RAG AI Assistant for FDA Regulatory Documents")
+st.write("""
+This AI-powered assistant helps users efficiently navigate **FDA regulatory documents**.  
+By leveraging **Retrieval-Augmented Generation (RAG)**, the app enables users to:
+- Upload **PDF documents** containing regulatory guidance.
+- Ask **questions** about the documents.
+- Get **AI-powered responses** with citations from the uploaded content.
+- Select different **AI personas** based on their expertise needs.
+- Choose between **multiple LLMs** for response generation.
+
+This tool is ideal for **regulatory professionals, pharmaceutical manufacturers, and researchers** who need  
+quick, reliable, and **context-aware answers** from large regulatory texts.
+""")
 
 # ℹ️ **Info Tabs**
 with st.expander("ℹ️ How to Use"):
