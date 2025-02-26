@@ -24,14 +24,23 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 # Connect to PostgreSQL (Supabase)
 def get_db_connection():
     """Establish a connection to the database using a context manager."""
-    return psycopg2.connect(DATABASE_URL)
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        return conn
+    except Exception as e:
+        st.error(f"❌ Database Connection Failed: {str(e)}")
+        return None
 
 # Save chat history to PostgreSQL
 def save_chat_history(user_input, bot_response, citations):
     """Save user queries and responses to the database."""
+    conn = get_db_connection()
+    if conn is None:
+        return
+    
     citations_text = " | ".join([f"{c['source']} (Page {c['page']})" for c in citations])
 
-    with get_db_connection() as conn:
+    try:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -41,14 +50,30 @@ def save_chat_history(user_input, bot_response, citations):
                 (user_input, bot_response, citations_text)
             )
             conn.commit()
+            print(f"✅ Query Saved: {user_input}")  # Debugging
+    except Exception as e:
+        print(f"❌ Error Saving Query: {str(e)}")  # Debugging
+    finally:
+        conn.close()
 
 # Retrieve past chat history
 def load_chat_history():
     """Retrieve the latest chat history from the database."""
-    with get_db_connection() as conn:
+    conn = get_db_connection()
+    if conn is None:
+        return []
+
+    try:
         with conn.cursor() as cur:
             cur.execute("SELECT user_query, bot_response, citations FROM chat_history ORDER BY id DESC LIMIT 10")
-            return cur.fetchall()
+            history = cur.fetchall()
+            print(f"✅ Retrieved {len(history)} Past Queries")  # Debugging
+            return history
+    except Exception as e:
+        print(f"❌ Error Loading Queries: {str(e)}")
+        return []
+    finally:
+        conn.close()
 
 # Process a single PDF file
 def process_single_pdf(pdf_file):
@@ -133,6 +158,7 @@ def route_query(user_input, selected_category):
                 "text": text_excerpt
             })
 
+    save_chat_history(user_input, response["result"], citations)  # ✅ Ensure query is saved
     return response["result"], citations
 
 # Streamlit UI
@@ -159,18 +185,14 @@ with st.sidebar:
 st.subheader("💬 Chat with Your PDFs")
 chat_history = load_chat_history()
 
-# ✅ Collapsible Past Queries Section (Now Auto-Fills Input)
+# Collapsible Past Queries
 with st.expander("🕒 Past Queries", expanded=False):
     for idx, (past_query, _, _) in enumerate(chat_history):
         if st.button(f"🔄 {past_query}", key=f"history_{idx}"):
-            st.session_state["user_query"] = past_query  # ✅ Auto-fills the query box
+            st.session_state["user_query"] = past_query  # ✅ Ensure query is filled
 
-# ✅ User Query Input Field
+# User Query Input
 user_query = st.text_input("Type your question here:", value=st.session_state.get("user_query", ""))
-
-# ✅ Clears session state after submission
-if user_query and st.session_state.get("user_query"):
-    st.session_state["user_query"] = ""
 
 if user_query:
     category = classify_query(user_query)
@@ -181,12 +203,8 @@ if user_query:
     )
 
     st.subheader("🤖 AI Response:")
-    response_placeholder = st.empty()
-
-    # Retrieve AI Response & Citations
     response, citations = route_query(user_query, selected_category)
-
-    response_placeholder.markdown(response.replace("\n", "\n\n"))
+    st.markdown(response.replace("\n", "\n\n"))
 
     # Display Citations
     if citations:
