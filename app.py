@@ -13,14 +13,30 @@ import openai
 import tempfile
 import os
 from openai import OpenAI
+import anthropic
+import google.generativeai as genai
+
+# ✅ Set Page Config
+st.set_page_config(page_title="📄 RAG AI PDF Assistant", layout="wide")
 
 # ✅ Load API Keys
 DATABASE_URL = st.secrets["DATABASE_URL"]
 OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+CLAUDE_API_KEY = st.secrets["CLAUDE_API_KEY"]
+GOOGLE_GEMINI_API_KEY = st.secrets["GOOGLE_GEMINI_API_KEY"]
+
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+os.environ["CLAUDE_API_KEY"] = CLAUDE_API_KEY
+os.environ["GOOGLE_GEMINI_API_KEY"] = GOOGLE_GEMINI_API_KEY
 
 # ✅ Initialize OpenAI Client
-client = OpenAI(api_key=OPENAI_API_KEY)
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
+
+# ✅ Initialize Claude Client (Anthropic)
+claude_client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+
+# ✅ Initialize Gemini Client (Google AI)
+genai.configure(api_key=GOOGLE_GEMINI_API_KEY)
 
 # ✅ Connect to PostgreSQL
 def get_db_connection():
@@ -81,7 +97,7 @@ def process_pdfs(uploaded_files):
 
 # ✅ Query classification
 def classify_query(user_input):
-    response = client.chat.completions.create(
+    response = openai_client.chat.completions.create(
         model="gpt-4-turbo",
         messages=[{"role": "system", "content": "Classify the user query into Regulatory Compliance, Manufacturing Standards, Product Safety, FDA Procedures, or General Inquiry."},
                   {"role": "user", "content": user_input}]
@@ -90,7 +106,7 @@ def classify_query(user_input):
     return category if category in ["Regulatory Compliance", "Manufacturing Standards", "Product Safety", "FDA Procedures", "General Inquiry"] else "General Inquiry"
 
 # ✅ Retrieve relevant documents
-def route_query(user_input, selected_category):
+def route_query(user_input, selected_category, persona):
     if "vector_store" not in st.session_state or "qa_chain" not in st.session_state:
         return "❌ Error: Please upload and process a document first.", []
     
@@ -112,8 +128,6 @@ def route_query(user_input, selected_category):
 
 # ✅ Streamlit UI
 # ✅ Introduction: Purpose of the App
-st.set_page_config(page_title="📄 RAG AI PDF Assistant", layout="wide")
-
 st.title("📄 RAG AI Assistant for FDA Regulatory Documents")
 st.write("""
 This AI-powered assistant helps users efficiently navigate **FDA regulatory documents**.  
@@ -138,6 +152,8 @@ with st.expander("ℹ️ How to Use"):
     **2️⃣ Select Persona** 👤 *(What kind of assistant do you need?)*  
     - **Regulatory Expert** 🏛️: Ideal for FDA regulations, legal, and compliance-related queries.  
     - **Manufacturing Specialist** 🏭: Best for queries related to pharmaceutical and industrial manufacturing standards.  
+    - **Product Safety Analyst** 🛡️: Questions on risk assessments, toxicity, and safety compliance.  
+    - **FDA Procedures Guide** 📑: Covers approval processes, documentation, and FDA guidelines.  
     - **General User** 🌎: Suitable for everyday use, providing easy-to-understand responses.
 
     **3️⃣ Ask Questions** 💬  
@@ -162,10 +178,13 @@ with st.expander("ℹ️ How to Use"):
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/7/7d/Food_and_Drug_Administration_logo.svg", width=150)
     st.title("⚙️ Settings")
-    persona = st.radio("Persona Selection", ["Regulatory Expert", "Manufacturing Specialist", "General User"])
+    persona = st.radio("Persona Selection", ["Regulatory Expert", "Manufacturing Specialist", "Product Safety Analyst", "FDA Procedures Guide", "General User"])
     
     st.subheader("📄 Your Documents")
     uploaded_files = st.file_uploader("Upload PDFs", type="pdf", accept_multiple_files=True)
+
+    st.subheader("🧠 Model Selection")
+    model_choice = st.selectbox("Choose a model:", ["OpenAI GPT-4", "Claude", "Gemini"])
 
     if st.button("Process"):
         if uploaded_files:
@@ -193,11 +212,11 @@ user_query = st.text_input("💬 Type your question here:", value=st.session_sta
 if user_query:
     category = classify_query(user_query)
     st.subheader("🤖 AI Response:")
-    response, citations = route_query(user_query, category)
+    response, citations = route_query(user_query, category, persona)
     st.markdown(response.replace("\n", "\n\n"))
 
     if citations:
         st.subheader("📄 Citations")
         for citation in citations:
             with st.expander(f"📄 {citation['source']} (Page {citation['page']})"):
-                st.write(f"**Excerpt:** {citation['text']}")  
+                st.write(f"**Excerpt:** {citation['text']}")
