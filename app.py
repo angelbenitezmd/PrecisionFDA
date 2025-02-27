@@ -215,6 +215,9 @@ if user_query:
     response, citations = route_query(user_query, category, persona)
     st.markdown(response.replace("\n", "\n\n"))
 
+    # Save chat history
+    save_chat_history(user_query, response, citations)
+
     if citations:
         st.subheader("📄 Citations")
         for citation in citations:
