@@ -1,26 +1,26 @@
 📄 PrecisionFDA RAG AI Assistant
 
 Angel Benitez, 2025
-LinkedIn https://www.linkedin.com/in/angel-benitez-md-mba-mshs-msc-6b409717b/
+LinkedIn: https://www.linkedin.com/in/angel-benitez-md-mba-mshs-msc-6b409717b/
 
 🚀 A Retrieval-Augmented Generation (RAG) AI Assistant for PrecisionFDA
-This project is part of the PrecisionFDA Generative AI Community Challenge, providing an AI-powered chatbot that retrieves and summarizes regulatory guidance documents using GPT-4, Claude, Gemini, and LLaMA 2.
+This project is part of the PrecisionFDA Generative AI Community Challenge, providing an AI-powered chatbot that retrieves and summarizes regulatory guidance documents using GPT-4, Claude, Gemini, and LLaMA.
 
 🛠️ Features
 
-✅ Upload PDFs: AI-powered search and summarization of FDA regulatory documents
-✅ Multiple LLMs: Supports GPT-4, Claude, Gemini, and LLaMA 2
-✅ Query Classification: Automatically categorizes user questions
-✅ Retrieval-Augmented Generation (RAG): Combines vector search with LLMs
-✅ Chat History: Stores user queries and responses with citations
-✅ Streamlit UI: Interactive web interface for users
+✅ Upload PDFs – AI-powered search and summarization of FDA regulatory documents
+✅ Multiple LLMs – Supports GPT-4, Claude, Gemini, and LLaMA
+✅ Query Classification – Automatically categorizes user questions
+✅ Retrieval-Augmented Generation (RAG) – Combines vector search with LLMs for precise answers
+✅ Chat History & Citations – Stores responses and provides references to source documents
+✅ Streamlit UI – Interactive web interface
 
-📦 Installation
+📦 Installation Guide
 
 1️⃣ Clone the Repository
 
-git clone https://github.com/your-username/PrecisionFDA-RAG-Assistant.git
-cd PrecisionFDA-RAG-Assistant
+git clone https://github.com/angelbenitezmd/PrecisionFDA.git
+cd PrecisionFDA
 
 2️⃣ Set Up a Virtual Environment (Optional but Recommended)
 
@@ -50,55 +50,67 @@ streamlit run app.py
 
 📄 Upload PDFs
 	1.	Click “Browse Files” in the sidebar.
-	2.	Upload FDA regulatory documents (PDF format).
-	3.	Click “Process” to generate AI embeddings.
+	2.	Upload FDA regulatory documents in PDF format.
+	3.	Click “Process” to generate AI-powered document embeddings.
 
 🏛 Choose an AI Persona
-	•	Regulatory Expert 🏛️
-	•	Manufacturing Specialist 🏭
-	•	General User 🌎
+	•	Regulatory Expert 🏛️ – Focused on FDA regulations, compliance, and legal queries
+	•	Manufacturing Specialist 🏭 – Covers Good Manufacturing Practices (GMP) and industry safety standards
+	•	Product Safety Analyst 🛡️ – Provides insights on risk assessments, toxicity, and safety compliance
+	•	FDA Procedures Guide 📑 – Assists with FDA approval processes, documentation, and submission guidelines
+	•	General User 🌎 – Offers easy-to-understand answers for non-technical users
 
 💬 Ask Questions
-	1.	Type a question in the chat box.
-	2.	The AI will retrieve relevant answers from your documents.
-	3.	View citations for accuracy.
+	1.	Type your question in the chat box.
+	2.	The AI retrieves answers from uploaded documents.
+	3.	View citations for accuracy and reference.
 
 🧠 Select LLM Model
 	•	GPT-4 (Default)
 	•	Claude
 	•	Gemini
-	•	LLaMA 2
+	•	LLaMA
 
 📥 Download Chat History
-	•	Export chat logs and citations as a CSV file.
+	•	Export chat logs and citations as a CSV file
 
 🏗️ Project Structure
 
-📂 PrecisionFDA-RAG-Assistant/
+📂 PrecisionFDA/
 ├── 📄 LICENSE                # MIT License
 ├── 📜 README.md              # Project Documentation
 ├── 📜 requirements.txt       # Dependencies
 ├── 📂 .streamlit/            
 │   ├── secrets.toml          # API Keys (ignored in Git)
 ├── 📂 data/                  # Uploaded PDFs
-├── 📂 models/                # Fine-tuned models (if applicable)
-├── 📂 src/                   
-│   ├── pdf_processing.py     # Handles PDF uploads
-│   ├── llm_handler.py        # Manages different LLMs
-│   ├── database.py           # PostgreSQL connection
-│   ├── chat.py               # Chatbot logic
-│   ├── app.py                # Main Streamlit application
+│   ├── MERGED_cosmetic_guidances.pdf  # Example PDF
+├── 📜 .gitignore             # Git ignore file
+├── 📜 app.py                 # Main Streamlit application
 
 🚀 Future Improvements
-	•	Add multi-modal RAG (supporting images & voice inputs)
-	•	Implement fine-tuned models for FDA-specific queries
-	•	Enhance scalability with GPU deployment options
+	•	Multi-modal RAG – Supporting images & voice inputs
+	•	Fine-tuned models – Optimized for FDA-specific queries
+	•	Scalability Enhancements – GPU-based deployment
 
 🤝 Contributing
+
+Want to contribute? Follow these steps:
 	1.	Fork this repository
-	2.	Create a feature branch (git checkout -b feature-xyz)
-	3.	Commit changes (git commit -m "Added new feature")
-	4.	Push to GitHub (git push origin feature-xyz)
+	2.	Create a feature branch
+
+git checkout -b feature-xyz
+
+
+	3.	Commit changes
+
+git commit -m "Added new feature"
+
+
+	4.	Push to GitHub
+
+git push origin feature-xyz
+
+
 	5.	Submit a PR for review 🎉
 
 📜 License
@@ -109,4 +121,36 @@ See LICENSE for details.
 📬 Contact
 
 📧 Email: angelbenitezmd@gmail.com
-🔗 LinkedIn: Angel Benitez
+🔗 LinkedIn: https://www.linkedin.com/in/angel-benitez-md-mba-mshs-msc-6b409717b/
+🔗 GitHub Repository: https://github.com/angelbenitezmd/PrecisionFDA
+
+🌟 Purpose and Use of the App
+
+The PrecisionFDA RAG AI Assistant helps users efficiently navigate FDA regulatory documents.
+By leveraging Retrieval-Augmented Generation (RAG), the app enables users to:
+
+✅ Upload PDFs containing regulatory guidance
+✅ Ask questions about FDA compliance, manufacturing, or product safety
+✅ Get AI-powered responses with citations from the uploaded documents
+✅ Select AI personas based on specific regulatory needs
+✅ Choose between multiple AI models to generate responses
+
+🔹 Key Use Cases
+
+💡 Regulatory Professionals – Quickly access FDA regulations and compliance information
+🏭 Pharmaceutical Manufacturers – Retrieve GMP guidelines and industry safety standards
+🛡 Product Safety Officers – Get guidance on risk assessments and safety compliance
+🔬 Researchers & Biotech Companies – Navigate FDA approval processes and documentation
+🌎 General Users – Receive easy-to-understand answers to FDA-related questions
+
+🎥 Live Demo
+
+🚀 A live demo will be available soon! Stay tuned.
+
+🎉 Why This README is Improved
+
+✅ No shortened links or hyperlinked text
+✅ Better structure & clear sections
+✅ Step-by-step installation & usage guide
+✅ AI personas with detailed descriptions
+✅ Precise formatting for readability

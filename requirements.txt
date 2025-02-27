@@ -8,3 +8,5 @@ pypdf
 python-dotenv
 tiktoken
 faiss-cpu
+anthropic
+google-generativeai
