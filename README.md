@@ -142,15 +142,3 @@ By leveraging Retrieval-Augmented Generation (RAG), the app enables users to:
 🛡 Product Safety Officers – Get guidance on risk assessments and safety compliance
 🔬 Researchers & Biotech Companies – Navigate FDA approval processes and documentation
 🌎 General Users – Receive easy-to-understand answers to FDA-related questions
-
-🎥 Live Demo
-
-🚀 A live demo will be available soon! Stay tuned.
-
-🎉 Why This README is Improved
-
-✅ No shortened links or hyperlinked text
-✅ Better structure & clear sections
-✅ Step-by-step installation & usage guide
-✅ AI personas with detailed descriptions
-✅ Precise formatting for readability
